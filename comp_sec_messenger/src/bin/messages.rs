@@ -46,3 +46,5 @@ fn build_key_from_password(password: String, session_id: i32) -> Digest {
 
     hash
 }
+
+
