@@ -1,76 +1,84 @@
 use std::net::{SocketAddr, TcpStream, TcpListener};
-use std::io::{Read, Write};
-use std::time::Duration;
+use std::io::{Read, Write, self};
+use std::str::from_utf8;
+use std::sync::mpsc;
+use std::sync::mpsc::{Receiver, TryRecvError};
+use std::{thread};
+
 
 
 fn main() -> std::io::Result<()> {
+    // no clue how to negotiate changing IPs without a dns server
+    const OTHER_IP : [u8; 4] = [127,0,0,1];
+    const MY_IP : [u8; 4] = [127,0,0,1];
+    const PORT : u16= 8080;
 
-// // instead of using a DNS server, scan the local network for IPs accepting a TCP connection
-// let address = [0, 0, 0, 0];
-// const CIDR: i64 = 0; // generally follows an ip, e. g. 127.0.0.1/24 denotes 127.0.0.1 with a subnet mask of the first 24 bits (255.255.255.0)
+    // target other ip
+    let addrs = [SocketAddr::from((OTHER_IP, PORT))];
 
-// let mut addrs: [SocketAddr; 2 << (32 - CIDR)] = [SocketAddr::from(([127, 0, 0, 1], 8080)); 2 << (32 - CIDR)];
-// let address_int = (address[0] << 24) + (address[1] << 16) + (address[2] << 8) + address[1];
-// let mask_int: i128 = ((2 << CIDR - 1) - 1) << 8;
+    // establish a connection
+    if let Ok(stream) = TcpStream::connect(&addrs[..]) {
+        println!("Opposite Party is online, connecting");
+        return Ok(conn_established(stream)?)
+    }else{
+        println!("Opposite Party is not logged on, creating TCP Listener");
+        let listener = TcpListener::bind(SocketAddr::from((MY_IP, PORT)))?;
 
-// // enumerate all possible addresses...
-// for i in (1..addrs.len()).step_by(2){
-//     let mut base_addr : i128 = (address_int & mask_int) + ((i / 2) as i128);
-//     let new_addr = [
-//         ((base_addr & 4278190080 ) >> 24) as u8,
-//         ((base_addr & 16711680) >> 16) as u8,
-//         ((base_addr & 65280) >> 8) as u8,
-//         (base_addr & 255) as u8
-//     ];
-
-//     addrs[i] = SocketAddr::from((new_addr, 8081));
-//     addrs[i - 1] = SocketAddr::from((new_addr, 8080));
-// }
-
-let addrs = [SocketAddr::from(([0,0,0,0], 8081)), SocketAddr::from(([0,0,0,0], 8080))];
-
-
-let mut connected = false;
-for address in addrs {
-    if let Ok(mut stream) = TcpStream::connect_timeout(&address, Duration::new(0, 1)){
-        println!("Connected to the server!");
-        stream.write(&[1,2,3,4])?;
-        connected = true;
-        break;
+        // accept connections and process them serially
+        for stream in listener.incoming() {
+            // initial connection established, switch to non-blocking and listening for input and messages sequentially
+            return Ok(conn_established(stream?)?)
+        }
+        Ok(())
     }
 }
-    if !connected {
 
-    println!("Opposite Party is not logged on, creating TCP Listener");
-    let listener = TcpListener::bind("0.0.0.0:8080")?;
+fn conn_established(mut stream: TcpStream) -> std::io::Result<()>{
+    println!("Connected to opposite party");
+    // set the stream to non-blocking so that we can poll it for incoming messages
+    stream.set_nonblocking(true).expect("set_nonblocking call failed");
 
-    // accept connections and process them serially
-    for stream in listener.incoming() {
-        message_received(stream?);
+    let stdin_channel = spawn_stdin_channel();
+    let mut buf = vec![];
+    loop {
+        // poll stdin for new messages to send
+        match stdin_channel.try_recv() {
+            Ok(key) => send_message(&key, &stream),
+            Err(TryRecvError::Empty) => {},
+            Err(TryRecvError::Disconnected) => {break}
+        }
+
+        // poll the stream for new messages to be received
+        match stream.read_to_end(&mut buf) {
+            Ok(_) => {},
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {}
+            Err(_e) => panic!("{}", "encountered IO error: {e}"),
+        };
+        if buf.len() > 0{
+            receive_messages(&mut buf)
+        }
     }
-    };
 
     Ok(())
-
 }
 
+fn receive_messages(messages : &mut Vec<u8>){
+    let text = from_utf8(messages).unwrap();
+    println!("Received Message: {}", text);
+    (*messages).clear();
+}
 
-// if let Ok(mut stream) = TcpStream::connect(&addrs[..]) {
-//     
-// } else {
-//     println!("Opposite Party is not logged on, creating TCP Listener");
-//     let listener = TcpListener::bind("129.15.65.229:8080")?;
+fn send_message(msg : &str, mut stream: &TcpStream){
+    let _result = stream.write(msg.as_bytes());
+}
 
-//     // accept connections and process them serially
-//     for stream in listener.incoming() {
-//         message_received(stream?);
-//     }
-//     Ok(())
-// }
-
-fn message_received(mut stream: TcpStream) -> std::io::Result<()>{
-    let buf = &mut [0; 128];
-    stream.read(buf)?;
-    println!("{:?}", buf);
-    Ok(())
+// credit to https://stackoverflow.com/questions/30012995/how-can-i-read-non-blocking-from-stdin
+fn spawn_stdin_channel() -> Receiver<String> {
+    let (tx, rx) = mpsc::channel::<String>();
+    thread::spawn(move || loop {
+        let mut buffer = String::new();
+        io::stdin().read_line(&mut buffer).unwrap();
+        tx.send(buffer).unwrap();
+    });
+    rx
 }
