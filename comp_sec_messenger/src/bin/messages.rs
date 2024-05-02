@@ -2,6 +2,7 @@
 mod config;
 mod gui;
 mod key_manager;
+mod tcp_comms;
 
 use std::io::{self, BufRead, StdinLock};
 use ring::digest::{SHA256, Context, SHA256_OUTPUT_LEN, Digest};
@@ -19,19 +20,6 @@ fn main() -> io::Result<()> {
         println!("{message_length}: {input}");
     }
     */
-
-    // let password = "amazing".to_string();
-    // let session_id = 13;
-    let password = config::PASSWORD;
-    let session_id = config::SESSION_ID;
-
-    let hash = key_manger::build_key_from_password(password, session_id);
-
-    // generate K1
-
-    // store curr key as private class variable so it's accessible to decrypt()..? idk how this works in rust :)
-
-    println!("{}", hex::encode(hash.as_ref()));
 
     Ok(())
 }
@@ -52,9 +40,10 @@ fn handle_sent_message(message: String){
     key_manager::generate_next_key();
 
     // encrypt message using new key 
-
+    
+    // send via TCP
 }
-
+// TODO: encrypting using key stored in key manager
 fn encrypt_message(message: String){
     let key = key_manager::key;
 }
@@ -78,7 +67,7 @@ fn handle_received_message(message: String){
     //gui::display_message(message_without_userid, username)
 }
 
-// fixed length key + random number 
+// fixed length key (256) + random number 
 fn decrypt_message(message: String){
     // retreive current key from key manager
     key = key_manager::key;

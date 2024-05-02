@@ -3,13 +3,24 @@ mod config;
 mod key_manager {
     let password = config::PASSWORD;
     let session_id = config::SESSION_ID;
-    pub static key = build_key_from_password(password, sesison_id);
+    pub static key = "None"; // may need to change this
+    
+pub fn print_key(){
+    println!("{}", hex::encode(key.as_ref()));
+}
 
-// TODO: generating new key each time a message is sent
-pub fn generate_next_key(prev_key){
-    // gen random number
+// TODO: generate new key each time a message is sent
+pub fn generate_next_key(){
+    let prev_key = key;
 
-    // encrypt (old key + rand #)
+    // if we are generating the first key, build from password
+    if(prev_key == "None"){
+        key = build_key_from_password(password, session_id);
+        return;
+    }
+
+    // else, generate new key
+    
 }
 
 pub fn build_key_from_password(password: String, session_id: i32) -> Digest {
