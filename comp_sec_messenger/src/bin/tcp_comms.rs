@@ -4,6 +4,7 @@ use std::str::from_utf8;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::{thread};
+mod messages;
 
 
 
@@ -65,6 +66,8 @@ fn conn_established(mut stream: TcpStream) -> std::io::Result<()>{
 fn receive_messages(messages : &mut Vec<u8>){
     let text = from_utf8(messages).unwrap();
     println!("Received Message: {}", text);
+    // decrypt message, display in UI
+    messages::handle_received_message(message);
     (*messages).clear();
 }
 

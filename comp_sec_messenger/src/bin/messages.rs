@@ -30,12 +30,12 @@ fn main() -> io::Result<()> {
     println!("{:?}", message);
     
     
-   
     //println!("{}", hex::encode(hash.as_ref()));
 
     Ok(())
 }
 
+mod messages {
 // decrypt message & call UI to display message (need to indicate to UI who it is from)
 // message: (encrypted message) + userId (1 = Alice, 2 = Bob)
 fn handle_received_message(message: String){
@@ -54,6 +54,13 @@ fn handle_received_message(message: String){
     // TOOD: pass in actual key 
     let decrypted_message = decrypt_message(message_without_userid, key);
     //gui::display_message(message_without_userid, username)
+}
+
+// UI calls this method and passes message from text input field
+fn handle_sent_message(message: String){
+    // generate new key, store new key as curr_key & encrypt
+
+    // call tcp::send_message()
 }
 
  // decryption
@@ -96,6 +103,7 @@ fn build_key_from_password(password: String, session_id: i32) -> aead::LessSafeK
     //println!("{:x}", hash.as_ref());
 //    aead::UnboundKey::new(&aead::AES_256_GCM, hash.as_ref()).unwrap()
     aead::LessSafeKey::new(aead::UnboundKey::new(&aead::AES_256_GCM, hash.as_ref()).unwrap())
+}
 }
 
 
