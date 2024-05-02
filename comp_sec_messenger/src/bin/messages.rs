@@ -34,7 +34,7 @@ fn main() -> io::Result<()> {
     let mlen = message.len();
     let tag_length = aead::AES_256_GCM.tag_len();
     message.drain((mlen-tag_length)..mlen);
-    println!("{:?}", message);
+    println!("{}", std::str::from_utf8(&message).unwrap());
     //println!("{}", hex::encode(hash.as_ref()));
 
     Ok(())
