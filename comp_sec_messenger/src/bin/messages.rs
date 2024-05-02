@@ -28,16 +28,43 @@ fn main() -> io::Result<()> {
     
     encrypt_message(key.clone(), &mut message);
     println!("{:?}", message);
-    let buf = &mut [0; aead::NONCE_LEN];
-    let nonce = aead::Nonce::try_assume_unique_for_key(buf).unwrap();
-    key.open_in_place(nonce, aead::Aad::empty(), &mut message).unwrap();
-    let mlen = message.len();
-    let tag_length = aead::AES_256_GCM.tag_len();
-    message.drain((mlen-tag_length)..mlen);
-    println!("{}", std::str::from_utf8(&message).unwrap());
+    
+    
+   
     //println!("{}", hex::encode(hash.as_ref()));
 
     Ok(())
+}
+
+// decrypt message & call UI to display message (need to indicate to UI who it is from)
+// message: (encrypted message) + userId (1 = Alice, 2 = Bob)
+fn handle_received_message(message: String){
+
+    // get user id (last char of string)
+    let user_id = message.chars().last().unwrap();
+    
+    // remove user id from message
+    let mut message_without_userid = message.to_string(); // create mutable string 
+    message_without_userid.pop(); // removes last char in place
+
+    let username = "Alice";
+    if(user_id == 2){
+        username = "Bob";
+    }
+    // TOOD: pass in actual key 
+    let decrypted_message = decrypt_message(message_without_userid, key);
+    //gui::display_message(message_without_userid, username)
+}
+
+ // decryption
+fn decrypt_message(key: aead::LessSafeKey, message: &mut std::vec::Vec<u8>){
+        let buf = &mut [0; aead::NONCE_LEN];
+        let nonce = aead::Nonce::try_assume_unique_for_key(buf).unwrap();
+        key.open_in_place(nonce, aead::Aad::empty(), &mut message).unwrap();
+        let mlen = message.len();
+        let tag_length = aead::AES_256_GCM.tag_len();
+        message.drain((mlen-tag_length)..mlen); // remove extras generated from encryption 
+        println!("{}", std::str::from_utf8(&message).unwrap());
 }
 
 // encrypts a given message in place with the key, with tag appended to encrypted message
