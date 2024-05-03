@@ -1,8 +1,6 @@
-use std::io::{self, BufRead, StdinLock};
-use ring::digest;
-//{SHA256, Context, SHA256_OUTPUT_LEN, Digest};
-use ring::aead;
-//{AES_256_GCM, UnboundKey, LessSafeKey, Nonce};
+use std::io;
+use ring::digest::{SHA256, Context};
+use ring::aead::{AES_256_GCM, UnboundKey, LessSafeKey, NONCE_LEN, Aad, Nonce};
 
 fn main() -> io::Result<()> {
     /*
@@ -28,6 +26,9 @@ fn main() -> io::Result<()> {
     
     encrypt_message(key.clone(), &mut message);
     println!("{:?}", message);
+
+    decrypt_message(key.clone(), &mut message);
+    println!("{:?}", message);
     
     
     //println!("{}", hex::encode(hash.as_ref()));
@@ -35,10 +36,9 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-mod messages {
 // decrypt message & call UI to display message (need to indicate to UI who it is from)
 // message: (encrypted message) + userId (1 = Alice, 2 = Bob)
-fn handle_received_message(message: String){
+pub fn handle_received_message(message: String){
 
     // get user id (last char of string)
     let user_id = message.chars().last().unwrap();
@@ -46,13 +46,14 @@ fn handle_received_message(message: String){
     // remove user id from message
     let mut message_without_userid = message.to_string(); // create mutable string 
     message_without_userid.pop(); // removes last char in place
+    
 
-    let username = "Alice";
-    if(user_id == 2){
-        username = "Bob";
-    }
+    // let username = "Alice";
+    // if user_id == 2{
+    //     username = "Bob";
+    // }
     // TOOD: pass in actual key 
-    let decrypted_message = decrypt_message(message_without_userid, key);
+    //let decrypted_message = decrypt_message(message_without_userid, key);
     //gui::display_message(message_without_userid, username)
 }
 
@@ -64,37 +65,36 @@ fn handle_sent_message(message: String){
 }
 
  // decryption
-fn decrypt_message(key: aead::LessSafeKey, message: &mut std::vec::Vec<u8>){
-        let buf = &mut [0; aead::NONCE_LEN];
-        let nonce = aead::Nonce::try_assume_unique_for_key(buf).unwrap();
-        key.open_in_place(nonce, aead::Aad::empty(), &mut message).unwrap();
+fn decrypt_message(key: LessSafeKey, message: &mut std::vec::Vec<u8>){
+        let buf = &mut [0; NONCE_LEN];
+        let nonce = Nonce::try_assume_unique_for_key(buf).unwrap();
+        key.open_in_place(nonce, Aad::empty(), message).unwrap();
         let mlen = message.len();
-        let tag_length = aead::AES_256_GCM.tag_len();
+        let tag_length = AES_256_GCM.tag_len();
         message.drain((mlen-tag_length)..mlen); // remove extras generated from encryption 
-        println!("{}", std::str::from_utf8(&message).unwrap());
 }
 
 // encrypts a given message in place with the key, with tag appended to encrypted message
-fn encrypt_message(key: aead::LessSafeKey, message: &mut std::vec::Vec<u8>) {
-    let nonce = aead::Nonce::try_assume_unique_for_key(&[0; aead::NONCE_LEN]).unwrap();
-    key.seal_in_place_append_tag(nonce, aead::Aad::empty(), message).unwrap();
+fn encrypt_message(key: LessSafeKey, message: &mut std::vec::Vec<u8>) {
+    let nonce = Nonce::try_assume_unique_for_key(&[0; NONCE_LEN]).unwrap();
+    key.seal_in_place_append_tag(nonce, Aad::empty(), message).unwrap();
 }
 
 // reads a line and returns the message length and trimmed string
-fn process_input(handle: &mut StdinLock) -> (i32, String) {
-    let mut buffer = String::new();
-    // read the line and the message length
-    let message_length = handle.read_line(&mut buffer);
+// fn process_input(handle: &mut StdinLock) -> (i32, String) {
+//     let mut buffer = String::new();
+//     // read the line and the message length
+//     let message_length = handle.read_line(&mut buffer);
 
-    // trim whitespace
-    let input = buffer.trim().to_string();
+//     // trim whitespace
+//     let input = buffer.trim().to_string();
     
-    (message_length.unwrap().try_into().unwrap(), input)
-}
+//     (message_length.unwrap().try_into().unwrap(), input)
+// }
 
 // builds a key from a password and random challenge
-fn build_key_from_password(password: String, session_id: i32) -> aead::LessSafeKey {
-    let mut hasher = digest::Context::new(&digest::SHA256);
+fn build_key_from_password(password: String, session_id: i32) -> LessSafeKey {
+    let mut hasher = Context::new(&SHA256);
     hasher.update(password.as_bytes());
     hasher.update(&session_id.to_be_bytes());
 
@@ -102,8 +102,7 @@ fn build_key_from_password(password: String, session_id: i32) -> aead::LessSafeK
 
     //println!("{:x}", hash.as_ref());
 //    aead::UnboundKey::new(&aead::AES_256_GCM, hash.as_ref()).unwrap()
-    aead::LessSafeKey::new(aead::UnboundKey::new(&aead::AES_256_GCM, hash.as_ref()).unwrap())
-}
+    LessSafeKey::new(UnboundKey::new(&AES_256_GCM, hash.as_ref()).unwrap())
 }
 
 
