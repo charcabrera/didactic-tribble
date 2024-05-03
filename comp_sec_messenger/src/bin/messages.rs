@@ -23,7 +23,8 @@ fn main() -> io::Result<()> {
     //let mut nonce: &[u8] = &[0; aead::NONCE_LEN];
     let mut message = b"epic".to_vec();
     println!("{:?}", message);
-    let key = build_key_from_password(password, session_id);
+//    let key = build_key_from_password(password, session_id);
+    let key = generate_random_key();
     
     encrypt_message(key.clone(), &mut message);
     println!("{:?}", message);
@@ -63,6 +64,14 @@ fn handle_sent_message(message: String){
     // generate new key, store new key as curr_key & encrypt
 
     // call tcp::send_message()
+}
+
+fn generate_random_key() -> LessSafeKey {
+    let sys_random = SystemRandom::new();
+    let mut buffer = [0u8; 32];
+
+    sys_random.fill(&mut buffer).unwrap();
+    LessSafeKey::new(UnboundKey::new(&AES_256_GCM, &buffer).unwrap())
 }
 
  // decryption
