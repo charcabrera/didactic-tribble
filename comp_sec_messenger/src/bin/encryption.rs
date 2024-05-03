@@ -1,4 +1,4 @@
-use std::io;
+
 use ring::digest::{SHA256, Context};
 use ring::aead::{AES_256_GCM, UnboundKey, LessSafeKey, NONCE_LEN, Aad, Nonce};
 use ring::rand::{SystemRandom, SecureRandom};
@@ -44,6 +44,6 @@ pub fn build_key_from_password(password: String, session_id: i32) -> LessSafeKey
 }
 
 // empty main function so the project compiles...
-fn main(){}
+fn main(){println!("run \"main\" to start the program")}
 
 

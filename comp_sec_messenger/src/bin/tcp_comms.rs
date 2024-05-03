@@ -1,8 +1,8 @@
 use std::net::{SocketAddr, TcpStream, TcpListener};
-use std::io::{Read, Write, self, ErrorKind};
-use std::str::from_utf8;
+use std::io::{Read, Write, self};
+
 use std::sync::mpsc;
-use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::mpsc::{Receiver};
 use std::{thread};
 
 /*
@@ -35,7 +35,7 @@ pub fn establish_tcp_conn(seed: &mut i32, buf: &mut Vec<u8>) -> Option<TcpStream
         // accept connections and process them serially
         for stream_res in listener.incoming() {
             // initial connection established
-            let mut stream = stream_res.unwrap();
+            let stream = stream_res.unwrap();
             stream.set_nonblocking(true).expect("set_nonblocking call failed");
             
             // poll until the opposite party sends the seed
@@ -63,7 +63,7 @@ pub fn establish_tcp_conn(seed: &mut i32, buf: &mut Vec<u8>) -> Option<TcpStream
 }
 
 
-pub fn poll_stdin(stdin_channel: &Receiver<String>, mut stream: &TcpStream, mut send_msg: impl FnMut(&String, &TcpStream)) {
+pub fn poll_stdin(stdin_channel: &Receiver<String>, stream: &TcpStream, mut send_msg: impl FnMut(&String, &TcpStream)) {
     // poll stdin for new messages to send
     match stdin_channel.try_recv() {
         Ok(mess) => send_msg(&mess, &stream),
@@ -97,4 +97,4 @@ pub fn spawn_stdin_channel() -> Receiver<String> {
 }
 
 // empty main function so the project compiles
-fn main(){}
+fn main(){println!("run \"main\" to start the program")}

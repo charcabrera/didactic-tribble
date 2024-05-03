@@ -17,10 +17,10 @@ fn main() -> std::io::Result<()> {
     let password: &str = "password";
 
     // create a buffer to contain messages as they're received
-    let mut buf: &mut Vec<u8> = &mut vec![];
+    let buf: &mut Vec<u8> = &mut vec![];
 
     // negotiate a TCP connection with the other party
-    let mut stream : &TcpStream = &tcp_comms::establish_tcp_conn(&mut seed, buf).expect("TCP Connection Could Not Be Established");
+    let stream : &TcpStream = &tcp_comms::establish_tcp_conn(&mut seed, buf).expect("TCP Connection Could Not Be Established");
 
     // allow a separate thread to listen to stdin
     let stdin_channel = &tcp_comms::spawn_stdin_channel();
@@ -31,13 +31,13 @@ fn main() -> std::io::Result<()> {
     // poll the message channel and the stdin channel for sent/received messages
     loop{
         // poll for received tcp messages
-        let mut omr = |msg: &mut Vec<u8>|{
+        let omr = |msg: &mut Vec<u8>|{
             on_message_received(msg, &mut key, &seed);
         };
         tcp_comms::poll_tcp_stream(buf, stream, omr);
 
         // // poll for stdin messages to send
-        let mut sm = |msg: &String, mut stream: &TcpStream|{
+        let sm = |msg: &String, stream: &TcpStream|{
             send_message(msg, stream, &mut key, &seed);
         };
         tcp_comms::poll_stdin(stdin_channel, stream, sm);
@@ -45,7 +45,7 @@ fn main() -> std::io::Result<()> {
 }
 
 // called whenever a message is received...
-fn on_message_received(messages : &mut Vec<u8>, mut k: &mut LessSafeKey, mut seed: &i32){
+fn on_message_received(messages : &mut Vec<u8>, k: &mut LessSafeKey, seed: &i32){
     // decrypt the message
     encryption::decrypt_message(k.clone(), messages);
 
@@ -60,7 +60,7 @@ fn on_message_received(messages : &mut Vec<u8>, mut k: &mut LessSafeKey, mut see
     (*messages).clear();
 }
 
-fn send_message(msg: &String, mut stream: &TcpStream, mut k: &mut LessSafeKey, mut seed: &i32){
+fn send_message(msg: &String, mut stream: &TcpStream, k: &mut LessSafeKey, seed: &i32){
     // encrypt the message
     let message : String = (*msg).clone();
     let ciphertext: &mut Vec<u8> = &mut message.clone().into_bytes();
@@ -70,5 +70,5 @@ fn send_message(msg: &String, mut stream: &TcpStream, mut k: &mut LessSafeKey, m
     *k = encryption::build_key_from_password(message, *seed);
 
     // write the message to the TCP Stream
-    stream.write(ciphertext);
+    let _ = stream.write(ciphertext);
 }
