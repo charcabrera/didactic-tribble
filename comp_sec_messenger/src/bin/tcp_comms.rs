@@ -23,7 +23,7 @@ pub fn establish_tcp_conn(seed: &mut i32, buf: &mut Vec<u8>) -> Option<TcpStream
         // connect to opposite party, second instance
 
         // send the seed
-        //stream.set_nonblocking(true).expect("set_nonblocking call failed");
+        stream.set_nonblocking(true).expect("set_nonblocking call failed");
         let test = stream.write_all(&seed.to_be_bytes());
         println!("{:?}", test);
 
@@ -63,7 +63,7 @@ pub fn establish_tcp_conn(seed: &mut i32, buf: &mut Vec<u8>) -> Option<TcpStream
 }
 
 
-pub fn poll_stdin(stdin_channel: &Receiver<String>, mut stream: &TcpStream, send_msg: &dyn Fn(&String, &TcpStream)){
+pub fn poll_stdin(stdin_channel: &Receiver<String>, mut stream: &TcpStream, mut send_msg: impl FnMut(&String, &TcpStream)) {
     // poll stdin for new messages to send
     match stdin_channel.try_recv() {
         Ok(mess) => send_msg(&mess, &stream),
@@ -71,7 +71,9 @@ pub fn poll_stdin(stdin_channel: &Receiver<String>, mut stream: &TcpStream, send
     }
 }
 
-pub fn poll_tcp_stream(buf: &mut Vec<u8>, mut stream: &TcpStream, mess_received: &dyn Fn(&mut Vec<u8>)) {
+
+
+pub fn poll_tcp_stream(buf: &mut Vec<u8>, mut stream: &TcpStream, mut mess_received: impl FnMut(&mut Vec<u8>))  {
     // poll the stream for new messages to be received
     match stream.read_to_end(buf) {
         Ok(_) => {},
