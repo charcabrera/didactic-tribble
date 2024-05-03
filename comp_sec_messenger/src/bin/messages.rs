@@ -5,13 +5,14 @@ use ring::rand::{SystemRandom, SecureRandom};
 
 fn main() -> io::Result<()> {
     let password = "amazing".to_string();
-    let session_id = generate_random_number();
+//    let session_id = generate_random_number();
+    let session_id = 1337;
 
     //let mut nonce: &[u8] = &[0; aead::NONCE_LEN];
     let mut message = b"epic".to_vec();
     println!("{:?}", message);
-//    let key = build_key_from_password(password, session_id);
-    let key = generate_random_key();
+    let key = build_key_from_password(password, session_id);
+//    let key = generate_random_key();
     
     encrypt_message(key.clone(), &mut message);
     println!("{:?}", message);
@@ -113,4 +114,21 @@ fn build_key_from_password(password: String, session_id: i32) -> LessSafeKey {
     LessSafeKey::new(UnboundKey::new(&AES_256_GCM, hash.as_ref()).unwrap())
 }
 
+/*
+#[cfg(test)]
+mod tests {
+    use super::*;
 
+    #[test]
+    fn test_encrypt() {
+        let key = build_key_from_password(password, session_id);
+        let password = "amazing".to_string();
+        let mut message = b"epic".to_vec();
+        let session_id = 1337;
+
+        let expected_encryption = [174, 222, 161, 240, 9, 17, 198, 22, 200, 49, 248, 150, 134, 233, 242, 130, 53, 153, 5, 10];
+        encrypt_message(key.clone(), &mut message);
+        assert_eq!(&expected_encryption, &message, "\nExpected\n{:?}\nFound\n{:?}", 
+    }
+}
+*/
