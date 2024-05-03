@@ -9,7 +9,7 @@ use std::{thread};
 This file contains a module of functions useful for creating and managing a TCP connection between Alice and Bob
 */
 
-pub fn establish_tcp_conn() -> Option<TcpStream> {
+pub fn establish_tcp_conn(seed: &mut i32, buf: &mut Vec<u8>) -> Option<TcpStream> {
     // no clue how to negotiate changing IPs without a dns server
     const OTHER_IP : [u8; 4] = [127,0,0,1];
     const MY_IP : [u8; 4] = [127,0,0,1];
@@ -19,18 +19,44 @@ pub fn establish_tcp_conn() -> Option<TcpStream> {
     let addrs = [SocketAddr::from((OTHER_IP, PORT))];
 
     // establish a connection
-    if let Ok(stream) = TcpStream::connect(&addrs[..]) {
-        println!("Opposite Party is online, connecting");
+    if let Ok(mut stream) = TcpStream::connect(&addrs[..]) {
+        // connect to opposite party, second instance
+
+        // send the seed
+        //stream.set_nonblocking(true).expect("set_nonblocking call failed");
+        let test = stream.write_all(&seed.to_be_bytes());
+        println!("{:?}", test);
+
         return Some(stream);
     }else{
         println!("Opposite Party is not logged on, creating TCP Listener");
         let listener = TcpListener::bind(SocketAddr::from((MY_IP, PORT))).ok()?;
 
         // accept connections and process them serially
-        for stream in listener.incoming() {
-            // initial connection established, switch to non-blocking and listening for input and messages sequentially
-            let mut ret_val = stream.unwrap();
-            return Some(ret_val)
+        for stream_res in listener.incoming() {
+            // initial connection established
+            let mut stream = stream_res.unwrap();
+            stream.set_nonblocking(true).expect("set_nonblocking call failed");
+            
+            // poll until the opposite party sends the seed
+            let mut seed_received: bool = false;
+            fn pass(_: &mut Vec<u8>){}
+
+            while !seed_received{
+                poll_tcp_stream(buf, &stream, &pass);
+                if buf.len() > 0 {
+                    // process the seed
+                    let input: &[u8] = buf.as_slice();
+                    let num: &[u8; 4] = &<&[u8] as TryInto<[u8; 4]>>::try_into(&input[0..4]).unwrap();
+                    *seed = i32::from_be_bytes(*num);
+
+                    // clear the buffer, and exit the loop
+                    (*buf).clear();
+                    seed_received = true
+                }
+            }
+
+            return Some(stream)
         }
         None
     }

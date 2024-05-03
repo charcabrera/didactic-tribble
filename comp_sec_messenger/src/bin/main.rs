@@ -11,18 +11,20 @@ This file utilizes the other modules to coordinate the whole application
 */
 
 fn main() -> std::io::Result<()> {
+    // shared password between Bob and Alice
+    let password = "password";
 
-    // negotiate a TCP connection with the other party
-    let mut stream : &TcpStream = &tcp_comms::establish_tcp_conn().expect("TCP Connection Could Not Be Established");
-
-    // set the stream to non-blocking so that we can poll it for incoming messages
-    stream.set_nonblocking(true).expect("set_nonblocking call failed");
-
-    // allow a separate thread to listen to stdin
-    let stdin_channel = &tcp_comms::spawn_stdin_channel();
+    // generate a random number to seed encryption IF this instance is the first instance started
+    let mut seed: i32 = encryption::generate_random_number();
 
     // create a buffer to contain messages as they're received
     let mut buf: &mut Vec<u8> = &mut vec![];
+
+    // negotiate a TCP connection with the other party
+    let mut stream : &TcpStream = &tcp_comms::establish_tcp_conn(&mut seed, buf).expect("TCP Connection Could Not Be Established");
+
+    // allow a separate thread to listen to stdin
+    let stdin_channel = &tcp_comms::spawn_stdin_channel();
 
     // poll the message channel and the stdin channel for sent/received messages
     loop{
@@ -31,15 +33,7 @@ fn main() -> std::io::Result<()> {
 
         // poll for stdin messages to send
         tcp_comms::poll_stdin(stdin_channel, stream, &send_message);
-
-
-
-
-
     }
-
-
-Ok(())
 }
 
 // called whenever a message is received...
