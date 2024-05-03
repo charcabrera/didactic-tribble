@@ -1,23 +1,23 @@
 use std::io;
 use ring::digest::{SHA256, Context};
 use ring::aead::{AES_256_GCM, UnboundKey, LessSafeKey, NONCE_LEN, Aad, Nonce};
+use ring::rand::{SystemRandom, SecureRandom};
+
+
+fn generate_random_number() -> i32 {
+let sys_random = SystemRandom::new();
+let mut buffer = [0u8; 4];
+
+// fill the buffer with random bytes
+sys_random.fill(&mut buffer).unwrap();
+i32::from_be_bytes(buffer)
+}
 
 fn main() -> io::Result<()> {
-    /*
-    let stdin = io::stdin();
-    let mut handle = stdin.lock();
 
-    loop {
-        let (message_length, input) = process_input(&mut handle);
-        if message_length == 0 || input == "exit" {
-            break;
-        }
-        println!("{message_length}: {input}");
-    }
-    */
 
     let password = "amazing".to_string();
-    let session_id = 13;
+    let session_id = generate_random_number();
 
     //let mut nonce: &[u8] = &[0; aead::NONCE_LEN];
     let mut message = b"epic".to_vec();
