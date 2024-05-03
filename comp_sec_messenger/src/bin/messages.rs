@@ -3,20 +3,7 @@ use ring::digest::{SHA256, Context};
 use ring::aead::{AES_256_GCM, UnboundKey, LessSafeKey, NONCE_LEN, Aad, Nonce};
 use ring::rand::{SystemRandom, SecureRandom};
 
-
-
-fn generate_random_number() -> i32 {
-let sys_random = SystemRandom::new();
-let mut buffer = [0u8; 4];
-
-// fill the buffer with random bytes
-sys_random.fill(&mut buffer).unwrap();
-i32::from_be_bytes(buffer)
-}
-
 fn main() -> io::Result<()> {
-
-
     let password = "amazing".to_string();
     let session_id = generate_random_number();
 
@@ -36,6 +23,16 @@ fn main() -> io::Result<()> {
     //println!("{}", hex::encode(hash.as_ref()));
 
     Ok(())
+}
+
+// generates a random 32 bit integer
+fn generate_random_number() -> i32 {
+    let sys_random = SystemRandom::new();
+    let mut buffer = [0u8; 4];
+
+    // fill the buffer with random bytes
+    sys_random.fill(&mut buffer).unwrap();
+    i32::from_be_bytes(buffer)
 }
 
 // decrypt message & call UI to display message (need to indicate to UI who it is from)
@@ -66,6 +63,7 @@ fn handle_sent_message(message: String){
     // call tcp::send_message()
 }
 
+// generates a random key based on system randomness
 fn generate_random_key() -> LessSafeKey {
     let sys_random = SystemRandom::new();
     let mut buffer = [0u8; 32];
@@ -74,7 +72,7 @@ fn generate_random_key() -> LessSafeKey {
     LessSafeKey::new(UnboundKey::new(&AES_256_GCM, &buffer).unwrap())
 }
 
- // decryption
+// decrypts a message in place given a key, removes appended tag
 fn decrypt_message(key: LessSafeKey, message: &mut std::vec::Vec<u8>){
         let buf = &mut [0; NONCE_LEN];
         let nonce = Nonce::try_assume_unique_for_key(buf).unwrap();
