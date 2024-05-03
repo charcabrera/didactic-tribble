@@ -4,6 +4,7 @@ use ring::aead::{AES_256_GCM, UnboundKey, LessSafeKey, NONCE_LEN, Aad, Nonce};
 use ring::rand::{SystemRandom, SecureRandom};
 
 
+
 fn generate_random_number() -> i32 {
 let sys_random = SystemRandom::new();
 let mut buffer = [0u8; 4];
