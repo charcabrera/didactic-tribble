@@ -1,13 +1,15 @@
 use std::net::{SocketAddr, TcpStream, TcpListener};
 use std::io::{Read, Write, self};
-use std::str::from_utf8;
+
 use std::sync::mpsc;
-use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::mpsc::{Receiver};
 use std::{thread};
 
+/*
+This file contains a module of functions useful for creating and managing a TCP connection between Alice and Bob
+*/
 
-
-fn main() -> std::io::Result<()> {
+pub fn establish_tcp_conn(seed: &mut i32, buf: &mut Vec<u8>) -> Option<TcpStream> {
     // no clue how to negotiate changing IPs without a dns server
     const OTHER_IP : [u8; 4] = [127,0,0,1];
     const MY_IP : [u8; 4] = [127,0,0,1];
@@ -17,63 +19,74 @@ fn main() -> std::io::Result<()> {
     let addrs = [SocketAddr::from((OTHER_IP, PORT))];
 
     // establish a connection
-    if let Ok(stream) = TcpStream::connect(&addrs[..]) {
-        println!("Opposite Party is online, connecting");
-        return Ok(conn_established(stream)?)
+    if let Ok(mut stream) = TcpStream::connect(&addrs[..]) {
+        // connect to opposite party, second instance
+
+        // send the seed
+        stream.set_nonblocking(true).expect("set_nonblocking call failed");
+        let test = stream.write_all(&seed.to_be_bytes());
+        println!("{:?}", test);
+
+        return Some(stream);
     }else{
         println!("Opposite Party is not logged on, creating TCP Listener");
-        let listener = TcpListener::bind(SocketAddr::from((MY_IP, PORT)))?;
+        let listener = TcpListener::bind(SocketAddr::from((MY_IP, PORT))).ok()?;
 
         // accept connections and process them serially
-        for stream in listener.incoming() {
-            // initial connection established, switch to non-blocking and listening for input and messages sequentially
-            return Ok(conn_established(stream?)?)
+        for stream_res in listener.incoming() {
+            // initial connection established
+            let stream = stream_res.unwrap();
+            stream.set_nonblocking(true).expect("set_nonblocking call failed");
+            
+            // poll until the opposite party sends the seed
+            let mut seed_received: bool = false;
+            fn pass(_: &mut Vec<u8>){}
+
+            while !seed_received{
+                poll_tcp_stream(buf, &stream, &pass);
+                if buf.len() > 0 {
+                    // process the seed
+                    let input: &[u8] = buf.as_slice();
+                    let num: &[u8; 4] = &<&[u8] as TryInto<[u8; 4]>>::try_into(&input[0..4]).unwrap();
+                    *seed = i32::from_be_bytes(*num);
+
+                    // clear the buffer, and exit the loop
+                    (*buf).clear();
+                    seed_received = true
+                }
+            }
+
+            return Some(stream)
         }
-        Ok(())
+        None
     }
 }
 
-fn conn_established(mut stream: TcpStream) -> std::io::Result<()>{
-    println!("Connected to opposite party");
-    // set the stream to non-blocking so that we can poll it for incoming messages
-    stream.set_nonblocking(true).expect("set_nonblocking call failed");
 
-    let stdin_channel = spawn_stdin_channel();
-    let mut buf = vec![];
-    loop {
-        // poll stdin for new messages to send
-        match stdin_channel.try_recv() {
-            Ok(key) => send_message(&key, &stream),
-            Err(TryRecvError::Empty) => {},
-            Err(TryRecvError::Disconnected) => {break}
-        }
-
-        // poll the stream for new messages to be received
-        match stream.read_to_end(&mut buf) {
-            Ok(_) => {},
-            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {}
-            Err(_e) => panic!("{}", "encountered IO error: {e}"),
-        };
-        if buf.len() > 0{
-            receive_messages(&mut buf)
-        }
+pub fn poll_stdin(stdin_channel: &Receiver<String>, stream: &TcpStream, mut send_msg: impl FnMut(&String, &TcpStream)) {
+    // poll stdin for new messages to send
+    match stdin_channel.try_recv() {
+        Ok(mess) => send_msg(&mess, &stream),
+        Err(_) => {}
     }
-
-    Ok(())
 }
 
-fn receive_messages(messages : &mut Vec<u8>){
-    let text = from_utf8(messages).unwrap();
-    println!("Received Message: {}", text);
-    (*messages).clear();
-}
 
-fn send_message(msg : &str, mut stream: &TcpStream){
-    let _result = stream.write(msg.as_bytes());
+
+pub fn poll_tcp_stream(buf: &mut Vec<u8>, mut stream: &TcpStream, mut mess_received: impl FnMut(&mut Vec<u8>))  {
+    // poll the stream for new messages to be received
+    match stream.read_to_end(buf) {
+        Ok(_) => {},
+        Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {},
+        Err(_) => {}
+    };
+    if buf.len() > 0{
+        mess_received(buf);
+    }
 }
 
 // credit to https://stackoverflow.com/questions/30012995/how-can-i-read-non-blocking-from-stdin
-fn spawn_stdin_channel() -> Receiver<String> {
+pub fn spawn_stdin_channel() -> Receiver<String> {
     let (tx, rx) = mpsc::channel::<String>();
     thread::spawn(move || loop {
         let mut buffer = String::new();
@@ -82,3 +95,6 @@ fn spawn_stdin_channel() -> Receiver<String> {
     });
     rx
 }
+
+// empty main function so the project compiles
+fn main(){println!("run \"main\" to start the program")}
