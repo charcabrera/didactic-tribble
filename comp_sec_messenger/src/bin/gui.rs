@@ -2,6 +2,14 @@ use iced::{
     widget::{Column, Container, Row, Text, TextInput, text_input, Scrollable, scrollable, Rule},
     Element, Length, Sandbox, Settings, Color,
 };
+use std::net::TcpStream;
+use ring::aead::LessSafeKey;
+mod encryption;
+mod tcp_comms;
+
+/*
+this file creates a GUI and uses the other modules to maintain an encrypted messaging session between instances of the app
+*/
 
 //ChatApp struct
 struct ChatApp {
@@ -10,7 +18,12 @@ struct ChatApp {
     messages: Vec<(String, String)>, // input sender and message
     alice_input_state: text_input::State, // Alice's text input state
     bob_input_state: text_input::State, // Bob's text input state
-    scroll: scrollable::State,  // scrollable container state for messages UI
+    scroll: scrollable::State,  // scrollable container state for messages UILessSafeKey
+    seed: i32,
+    password: String,
+    buf: Vec<u8>,
+    stream: TcpStream,
+    key: LessSafeKey
 }
 
 // Message enum
@@ -28,6 +41,13 @@ impl Sandbox for ChatApp {
 
     // construct new ChatApp instance
     fn new() -> Self {
+        let password: String = "Password".to_owned();
+        let mut seed: i32 = encryption::generate_random_number();
+        let mut buf: Vec<u8> = vec![];
+        // negotiate a TCP connection with the other party
+        let stream : TcpStream = tcp_comms::establish_tcp_conn(&mut seed, &mut buf).expect("TCP Connection Could Not Be Established");
+        let mut key = encryption::build_key_from_password(password.to_owned(), seed);
+
         Self {
             alice_input_value: String::new(),
             bob_input_value: String::new(),
@@ -35,6 +55,11 @@ impl Sandbox for ChatApp {
             alice_input_state: text_input::State::new(),
             bob_input_state: text_input::State::new(),
             scroll: scrollable::State::new(),
+            seed: seed,
+            password: password,
+            buf: buf,
+            stream: stream,
+            key: key
         }
     }
 
