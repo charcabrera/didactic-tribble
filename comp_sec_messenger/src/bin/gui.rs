@@ -1,9 +1,12 @@
 use iced::{
-    widget::{Column, Container, Row, Text, TextInput, text_input, Scrollable, scrollable, Rule},
-    Element, Length, Sandbox, Settings, Color,
+    widget::{Column, Container, Row, Text, TextInput, text_input, Scrollable, scrollable, Rule, Button},
+    Element, Length, Sandbox, Settings, Color
 };
 use std::net::TcpStream;
 use ring::aead::LessSafeKey;
+use std::io::Write;
+use iced::button::State;
+use std::str::from_utf8;
 mod encryption;
 mod tcp_comms;
 
@@ -23,7 +26,9 @@ struct ChatApp {
     password: String,
     buf: Vec<u8>,
     stream: TcpStream,
-    key: LessSafeKey
+    key: LessSafeKey,
+    is_alice: bool,
+    refresh_button_state: iced::button::State
 }
 
 // Message enum
@@ -33,6 +38,7 @@ enum Message {
     BobInputChanged(String),
     AliceSendMessage,
     BobSendMessage,
+    Refresh
 }
 
 // implement iced Sandbox trait for ChatApp
@@ -43,10 +49,13 @@ impl Sandbox for ChatApp {
     fn new() -> Self {
         let password: String = "Password".to_owned();
         let mut seed: i32 = encryption::generate_random_number();
+        let og_seed: i32 = seed;
         let mut buf: Vec<u8> = vec![];
         // negotiate a TCP connection with the other party
         let stream : TcpStream = tcp_comms::establish_tcp_conn(&mut seed, &mut buf).expect("TCP Connection Could Not Be Established");
         let mut key = encryption::build_key_from_password(password.to_owned(), seed);
+        let is_alice = og_seed == seed;
+        let mut state = State::new();
 
         Self {
             alice_input_value: String::new(),
@@ -59,7 +68,9 @@ impl Sandbox for ChatApp {
             password: password,
             buf: buf,
             stream: stream,
-            key: key
+            key: key,
+            is_alice: is_alice,
+            refresh_button_state: state
         }
     }
 
@@ -83,6 +94,7 @@ impl Sandbox for ChatApp {
             // send Alice's message to ChatApp
             Message::AliceSendMessage => {
                 if !self.alice_input_value.trim().is_empty() {
+                    send_message(&self.alice_input_value, &self.stream, &mut self.key, &self.seed);
                     self.messages.push(("Alice".to_string(), self.alice_input_value.trim().to_string()));
                     self.alice_input_value.clear();
                 }
@@ -90,9 +102,28 @@ impl Sandbox for ChatApp {
             // send Bob's message to ChatApp
             Message::BobSendMessage => {
                 if !self.bob_input_value.trim().is_empty() {
+                    send_message(&self.bob_input_value, &self.stream, &mut self.key, &self.seed);
                     self.messages.push(("Bob".to_string(), self.bob_input_value.trim().to_string()));
                     self.bob_input_value.clear();
                 }
+            }
+
+            Message::Refresh => {
+                // poll for received tcp messages
+                let omr = |msg: &mut Vec<u8>|{
+                    let text : String = on_message_received(msg, &mut self.key, &self.seed);
+                    if text != "" {
+                        if self.is_alice {
+                            println!("{}", text);
+                            self.messages.push(("Bob".to_string(), text));
+                        } else {
+                            self.messages.push(("Alice".to_string(), text));
+                        }
+                    }
+                    (*msg).clear();
+                };
+                tcp_comms::poll_tcp_stream(&mut self.buf, &self.stream, omr);
+
             }
         }
     }
@@ -134,12 +165,23 @@ impl Sandbox for ChatApp {
         .on_submit(Message::BobSendMessage)
         .padding(10)
         .size(20);
-    
+
         // set input components
-        let inputs = Row::new()
-            .push(alice_input)
+        let refresh_button = Button::new(&mut self.refresh_button_state, Text::new("Refresh Messages"))
+            .padding(10)
+            .on_press(Message::Refresh);
+        let mut inputs = Row::new();
+        if self.is_alice {
+            inputs = Row::new()
+                .push(alice_input)
+                .push(refresh_button)
+                .spacing(20);
+        } else {
+            inputs = Row::new()
             .push(bob_input)
+            .push(refresh_button)
             .spacing(20);
+        }
     
         // set scrollable container for messages
         let chat_messages = self.messages.iter().fold(
@@ -170,6 +212,33 @@ impl Sandbox for ChatApp {
             .into()
     }
     
+}
+
+// called whenever a message is received...
+fn on_message_received(messages : &mut Vec<u8>, k: &mut LessSafeKey, seed: &i32) -> String{
+    // decrypt the message
+    encryption::decrypt_message(k.clone(), messages);
+
+    // display message
+    let text = from_utf8(messages).unwrap();
+
+    // generate a new key;
+    *k = encryption::build_key_from_password(text.to_owned(), *seed);
+
+    text.to_string()
+}
+
+fn send_message(msg: &String, mut stream: &TcpStream, k: &mut LessSafeKey, seed: &i32){
+    // encrypt the message
+    let message : String = (*msg).clone();
+    let ciphertext: &mut Vec<u8> = &mut message.clone().into_bytes();
+    encryption::encrypt_message(k.clone(), ciphertext);
+
+    // generate a new key based on the message
+    *k = encryption::build_key_from_password(message, *seed);
+
+    // write the message to the TCP Stream
+    let _ = stream.write(ciphertext);
 }
 
 // main func to run ChatApp
