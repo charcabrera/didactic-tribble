@@ -52,8 +52,3 @@ pub fn build_key_from_password(password: String, session_id: i32) -> LessSafeKey
     let hash = hasher.finish();
     LessSafeKey::new(UnboundKey::new(&AES_256_GCM, hash.as_ref()).unwrap())
 }
-
-// empty main function so the project compiles...
-fn main(){println!("run \"main\" to start the program")}
-
-

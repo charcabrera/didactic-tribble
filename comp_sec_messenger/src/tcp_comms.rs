@@ -95,6 +95,3 @@ pub fn spawn_stdin_channel() -> Receiver<String> {
     });
     rx
 }
-
-// empty main function so the project compiles
-fn main(){println!("run \"main\" to start the program")}
