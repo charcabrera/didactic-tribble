@@ -10,7 +10,6 @@ This file contains a module of functions useful for creating and managing a TCP 
 */
 
 pub fn establish_tcp_conn(seed: &mut i32, buf: &mut Vec<u8>) -> Option<TcpStream> {
-    // no clue how to negotiate changing IPs without a dns server
     const OTHER_IP : [u8; 4] = [127,0,0,1];
     const MY_IP : [u8; 4] = [127,0,0,1];
     const PORT : u16= 8080;

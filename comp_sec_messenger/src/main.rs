@@ -28,7 +28,7 @@ struct ChatApp {
     stream: TcpStream,
     key: LessSafeKey,
     is_alice: bool,
-    refresh_button_state: iced::button::State
+    refresh_button_state: iced::button::State,
 }
 
 // Message enum
@@ -70,7 +70,7 @@ impl Sandbox for ChatApp {
             stream: stream,
             key: key,
             is_alice: is_alice,
-            refresh_button_state: state
+            refresh_button_state: state,
         }
     }
 
@@ -94,16 +94,18 @@ impl Sandbox for ChatApp {
             // send Alice's message to ChatApp
             Message::AliceSendMessage => {
                 if !self.alice_input_value.trim().is_empty() {
-                    send_message(&self.alice_input_value, &self.stream, &mut self.key, &self.seed);
+                    let ciphertext = send_message(&self.alice_input_value, &self.stream, &mut self.key, &self.seed);
                     self.messages.push(("Alice".to_string(), self.alice_input_value.trim().to_string()));
+                    self.messages.push(("Ciphertext".to_string(), ciphertext));
                     self.alice_input_value.clear();
                 }
             },
             // send Bob's message to ChatApp
             Message::BobSendMessage => {
                 if !self.bob_input_value.trim().is_empty() {
-                    send_message(&self.bob_input_value, &self.stream, &mut self.key, &self.seed);
+                    let ciphertext = send_message(&self.bob_input_value, &self.stream, &mut self.key, &self.seed);
                     self.messages.push(("Bob".to_string(), self.bob_input_value.trim().to_string()));
+                    self.messages.push(("Ciphertext".to_string(), ciphertext));
                     self.bob_input_value.clear();
                 }
             }
@@ -111,10 +113,10 @@ impl Sandbox for ChatApp {
             Message::Refresh => {
                 // poll for received tcp messages
                 let omr = |msg: &mut Vec<u8>|{
-                    let text : String = on_message_received(msg, &mut self.key, &self.seed);
+                    let (text, ciphertext) : (String, String) = on_message_received(msg, &mut self.key, &self.seed);
                     if text != "" {
+                        self.messages.push(("Ciphertext".to_string(), ciphertext));
                         if self.is_alice {
-                            println!("{}", text);
                             self.messages.push(("Bob".to_string(), text));
                         } else {
                             self.messages.push(("Alice".to_string(), text));
@@ -187,7 +189,7 @@ impl Sandbox for ChatApp {
         let chat_messages = self.messages.iter().fold(
             Scrollable::new(&mut self.scroll).spacing(10).padding(20).width(Length::Fill).height(Length::FillPortion(5)),
             |scroll, (sender, message)| {
-                let color = if sender == "Alice" { Color::from_rgb(1.0, 0.0, 0.0) } else { Color::from_rgb(0.0, 0.0, 1.0) }; // Alice is red, Bob is blue
+                let color = if sender == "Alice" { Color::from_rgb(1.0, 0.0, 0.0) } else if sender == "Bob" { Color::from_rgb(0.0, 0.0, 1.0) } else { Color::from_rgb(0.0, 0.5, 0.5) }; // Alice is red, Bob is blue
                 let label = Text::new(format!("{}: ", sender)).color(color);
                 // clone message and send to scrollable container
                 let user_message = Text::new(message.clone());
@@ -215,9 +217,10 @@ impl Sandbox for ChatApp {
 }
 
 // called whenever a message is received...
-fn on_message_received(messages : &mut Vec<u8>, k: &mut LessSafeKey, seed: &i32) -> String{
+fn on_message_received(messages : &mut Vec<u8>, k: &mut LessSafeKey, seed: &i32) -> (String, String){
     // decrypt the message
     //    println!("{:?}", messages);
+    let ciphertext = String::from_utf8_lossy(messages).into_owned();
     encryption::decrypt_message(k.clone(), messages);
 
     // remove the last 32 bytes for the key
@@ -232,10 +235,10 @@ fn on_message_received(messages : &mut Vec<u8>, k: &mut LessSafeKey, seed: &i32)
     // generate a new key based on the last 32 bits of the plaintext
     *k = LessSafeKey::new(UnboundKey::new(&AES_256_GCM, &buf).unwrap());
 
-    text.to_string()
+    (text.to_string(), ciphertext)
 }
 
-fn send_message(msg: &String, mut stream: &TcpStream, k: &mut LessSafeKey, seed: &i32){
+fn send_message(msg: &String, mut stream: &TcpStream, k: &mut LessSafeKey, seed: &i32) -> String{
     // encrypt the message
     let message : String = (*msg).clone();
     // generate a 32 bit random key
@@ -252,6 +255,7 @@ fn send_message(msg: &String, mut stream: &TcpStream, k: &mut LessSafeKey, seed:
 
     // write the message to the TCP Stream
     let _ = stream.write(ciphertext);
+    return String::from_utf8_lossy(ciphertext).into_owned();
 }
 
 // main func to run ChatApp
