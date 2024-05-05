@@ -224,7 +224,7 @@ fn on_message_received(messages : &mut Vec<u8>, k: &mut LessSafeKey, seed: &i32)
     let mlen = messages.len();
     let buf = messages.as_slice()[mlen-32..].to_vec();
     messages.drain(mlen-32..);
-    println!("{:?}", buf);
+    //println!("{:?}", buf);
 
     // display message
     let text = from_utf8(messages).unwrap();

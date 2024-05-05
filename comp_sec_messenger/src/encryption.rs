@@ -7,15 +7,6 @@ use ring::rand::{SystemRandom, SecureRandom};
 This file contains a module of functions necessary to implement perfect forward security
 */
 
-// generates a 32 byte array based on system randomness
-pub fn generate_random_key() -> [u8; 32] {
-    let sys_random = SystemRandom::new();
-    let mut buffer = [0u8; 32];
-
-    sys_random.fill(&mut buffer).unwrap();
-    buffer
-}
-
 // generates a random number using a source of entropy cound in the operating system.
 pub fn generate_random_number() -> i32 {
     let sys_random = SystemRandom::new();
