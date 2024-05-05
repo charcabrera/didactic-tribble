@@ -26,6 +26,16 @@ pub fn generate_random_number() -> i32 {
     i32::from_be_bytes(buffer)
 }
 
+
+// generates a 32 byte array based on system randomness
+pub fn generate_random_key() -> [u8; 32] {
+    let sys_random = SystemRandom::new();
+    let mut buffer = [0u8; 32];
+
+    sys_random.fill(&mut buffer).unwrap();
+    buffer
+}
+
 // decrypts a message in place with the key, with tage removed from the encrypted message
 pub fn decrypt_message(key: LessSafeKey, message: &mut std::vec::Vec<u8>){
         let buf = &mut [0; NONCE_LEN];

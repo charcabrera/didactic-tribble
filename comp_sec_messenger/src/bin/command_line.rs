@@ -3,7 +3,7 @@ mod tcp_comms;
 use std::net::{TcpStream};
 use std::io::{Write};
 use std::str::from_utf8;
-use ring::aead::LessSafeKey;
+use ring::aead::{LessSafeKey, UnboundKey, AES_256_GCM};
 
 /*
 This file utilizes the other modules to coordinate the whole application
@@ -45,29 +45,42 @@ fn main() -> std::io::Result<()> {
 }
 
 // called whenever a message is received...
-fn on_message_received(messages : &mut Vec<u8>, k: &mut LessSafeKey, seed: &i32){
+fn on_message_received(messages : &mut Vec<u8>, k: &mut LessSafeKey, _seed: &i32){
     // decrypt the message
+//    println!("{:?}", messages);
     encryption::decrypt_message(k.clone(), messages);
+
+    // remove the last 32 bytes for the key
+    let mlen = messages.len();
+    let buf = messages.as_slice()[mlen-32..].to_vec();
+    messages.drain(mlen-32..);
+//    println!("{:?}", buf);
 
     // display message
     let text = from_utf8(messages).unwrap();
     println!("Received Message: {}", text);
 
-    // generate a new key;
-    *k = encryption::build_key_from_password(text.to_owned(), *seed);
+    // generate a new key based on the last 32 bits of the ciphertext
+    *k = LessSafeKey::new(UnboundKey::new(&AES_256_GCM, &buf).unwrap());
 
     // clear the buffer
     (*messages).clear();
 }
 
-fn send_message(msg: &String, mut stream: &TcpStream, k: &mut LessSafeKey, seed: &i32){
+fn send_message(msg: &String, mut stream: &TcpStream, k: &mut LessSafeKey, _seed: &i32){
     // encrypt the message
     let message : String = (*msg).clone();
+    // generate a 32 bit random key
+    let buf = encryption::generate_random_key();
+
     let ciphertext: &mut Vec<u8> = &mut message.clone().into_bytes();
+    
+    // append the key to the plaintext before encryption
+    ciphertext.append(&mut buf.to_vec());
     encryption::encrypt_message(k.clone(), ciphertext);
 
-    // generate a new key based on the message
-    *k = encryption::build_key_from_password(message, *seed);
+    // generate a new key based on the random generator
+    *k = LessSafeKey::new(UnboundKey::new(&AES_256_GCM, &buf).unwrap());
 
     // write the message to the TCP Stream
     let _ = stream.write(ciphertext);
